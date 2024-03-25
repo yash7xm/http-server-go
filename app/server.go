@@ -1,13 +1,22 @@
 package main
 
 import (
+	"flag"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
+var directoryPath string
+
 func main() {
+
+	flag.StringVar(&directoryPath, "directory", "", "Directory path")
+	flag.Parse()
+
 	l, err := net.Listen("tcp", "0.0.0.0:4221")
 	if err != nil {
 		fmt.Println("Failed to bind to port 4221")
@@ -27,6 +36,7 @@ func main() {
 }
 
 func handleConnection(conn net.Conn) {
+	defer conn.Close()
 	req := make([]byte, 1024)
 	n, err := conn.Read(req)
 	if err != nil {
@@ -52,12 +62,36 @@ func handleConnection(conn net.Conn) {
 			if err != nil {
 				fmt.Println("Error writing on the connection: ", err.Error())
 			}
-		} else if strings.HasPrefix(path, "/user-agent") {
+		} else if path == "/user-agent" {
 			ua := extractUserAgent(req[:n])
 			response := fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(ua), ua)
 			_, err := conn.Write([]byte(response))
 			if err != nil {
 				fmt.Println("Error writing on the connection: ", err.Error())
+			}
+		} else if strings.HasPrefix(path, "/files/") {
+			fileName := strings.TrimPrefix(path, "/files/")
+			filePath := filepath.Join(directoryPath, fileName)
+			if fileExists(filePath) {
+				fileContents, err := ioutil.ReadFile(filePath)
+				if err != nil {
+					fmt.Println("Error reading file:", err)
+					_, err := conn.Write([]byte("HTTP/1.1 500 Internal Server Error\r\n\r\n"))
+					if err != nil {
+						fmt.Println("Error writing on the connection: ", err.Error())
+					}
+					return
+				}
+				response := fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: %d\r\n\r\n%s", len(fileContents), fileContents)
+				_, err = conn.Write([]byte(response))
+				if err != nil {
+					fmt.Println("Error writing on the connection: ", err.Error())
+				}
+			} else {
+				_, err := conn.Write([]byte("HTTP/1.1 404 Not Found\r\n\r\n"))
+				if err != nil {
+					fmt.Println("Error writing on the connection: ", err.Error())
+				}
 			}
 		} else {
 			_, err = conn.Write([]byte("HTTP/1.1 404 Not Found\r\n\r\n"))
@@ -86,4 +120,9 @@ func extractUserAgent(req []byte) string {
 		}
 	}
 	return ""
+}
+
+func fileExists(filePath string) bool {
+	_, err := os.Stat(filePath)
+	return !os.IsNotExist(err)
 }
