@@ -4,7 +4,20 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net"
+	"path/filepath"
+	"strings"
 )
+
+func handleFileRequest(conn net.Conn, path string, method string, req []byte) {
+	fileName := strings.TrimPrefix(path, "/files/")
+	filePath := filepath.Join(directoryPath, fileName)
+	if method == "GET" {
+		getFile(filePath, conn)
+	} else if method == "POST" {
+		body := extractPostBody(req)
+		postFile(filePath, body, conn)
+	}
+}
 
 func getFile(filePath string, conn net.Conn) {
 	if fileExists(filePath) {
