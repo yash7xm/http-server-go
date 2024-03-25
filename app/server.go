@@ -15,9 +15,20 @@ func main() {
 
 	fmt.Println("server started on port 4221")
 	
-	_, err = l.Accept()
+	conn, err := l.Accept()
 	if err != nil {
 		fmt.Println("Error accepting connection: ", err.Error())
 		os.Exit(1)
+	}
+
+	req := make([] byte, 1024)
+	_, err = conn.Read(req)
+	if err != nil {
+		fmt.Println("Error reading the connection: ", err.Error())
+	}
+
+	_, err = conn.Write([]byte("HTTP/1.1 200 OK\r\n\r\n"))
+	if err != nil {
+		fmt.Println("Error writing on the connection: ", err.Error())
 	}
 }
