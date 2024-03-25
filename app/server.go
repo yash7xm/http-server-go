@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 )
 
 func main() {
@@ -39,25 +40,28 @@ func main() {
 			fmt.Println("Error writing on the connection: ", err.Error())
 		}
 	} else {
-		_, err = conn.Write([]byte("HTTP/1.1 404 Not Found\r\n\r\n"))
-		if err != nil {
-			fmt.Println("Error writing on the connection: ", err.Error())
+		if strings.HasPrefix(path, "/echo/") {
+			randomString := strings.TrimPrefix(path, "/echo/")
+			response := fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(randomString), randomString)
+			_, err := conn.Write([]byte(response))
+			if err != nil {
+				fmt.Println("Error writing on the connection: ", err.Error())
+			}
+		} else {
+			_, err = conn.Write([]byte("HTTP/1.1 404 Not Found\r\n\r\n"))
+			if err != nil {
+				fmt.Println("Error writing on the connection: ", err.Error())
+			}
 		}
 	}
-
 }
 
 func extractPath(req string) string {
 	var path string
-	if req[4] == '/' {
-		for i := 4; i < len(req); i++ {
-			if string(req[i]) != " " {
-				path += string(req[i])
-			} else {
-				break
-			}
-		}
+	start := strings.Index(req, " ") + 1
+	end := strings.Index(req[start:], " ") + start
+	if start > 0 && end > start {
+		path = req[start:end]
 	}
-
 	return path
 }
