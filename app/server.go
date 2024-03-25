@@ -46,6 +46,9 @@ func handleConnection(conn net.Conn) {
 	fmt.Println("req read from conn:- ", string(req[:n]))
 
 	path := extractPath(string(req[:n]))
+	method := extractMethod(string(req[:n]))
+
+	fmt.Println("Method is:- ", method)
 
 	fmt.Println("Path from the req is:- ", path)
 
@@ -72,27 +75,14 @@ func handleConnection(conn net.Conn) {
 		} else if strings.HasPrefix(path, "/files/") {
 			fileName := strings.TrimPrefix(path, "/files/")
 			filePath := filepath.Join(directoryPath, fileName)
-			if fileExists(filePath) {
-				fileContents, err := ioutil.ReadFile(filePath)
-				if err != nil {
-					fmt.Println("Error reading file:", err)
-					_, err := conn.Write([]byte("HTTP/1.1 500 Internal Server Error\r\n\r\n"))
-					if err != nil {
-						fmt.Println("Error writing on the connection: ", err.Error())
-					}
-					return
-				}
-				response := fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: %d\r\n\r\n%s", len(fileContents), fileContents)
-				_, err = conn.Write([]byte(response))
-				if err != nil {
-					fmt.Println("Error writing on the connection: ", err.Error())
-				}
-			} else {
-				_, err := conn.Write([]byte("HTTP/1.1 404 Not Found\r\n\r\n"))
-				if err != nil {
-					fmt.Println("Error writing on the connection: ", err.Error())
-				}
-			}
+			if method == "GET" {
+                getFile(filePath, conn)
+            } else if method == "POST" {
+				fmt.Println("File content is:- ", string(req[n:]))
+				body := extractPostBody(req)
+				fmt.Println("Body is :- ", body)
+                postFile(filePath,body, conn)
+            }
 		} else {
 			_, err = conn.Write([]byte("HTTP/1.1 404 Not Found\r\n\r\n"))
 			if err != nil {
@@ -112,6 +102,11 @@ func extractPath(req string) string {
 	return path
 }
 
+func extractMethod(req string) string {
+	end := strings.Index(req, " ")
+	return req[:end]
+}
+
 func extractUserAgent(req []byte) string {
 	lines := strings.Split(string(req), "\r\n")
 	for _, line := range lines {
@@ -122,7 +117,62 @@ func extractUserAgent(req []byte) string {
 	return ""
 }
 
+func extractPostBody(req []byte) string {
+    lines := strings.Split(string(req), "\r\n")
+    for i := len(lines) - 1; i >= 0; i-- {
+        line := strings.TrimRight(lines[i], "\x00")
+        line = strings.TrimSpace(line)
+        if line != "" {
+            return line
+        }
+    }
+    return ""
+}
+
+
 func fileExists(filePath string) bool {
 	_, err := os.Stat(filePath)
 	return !os.IsNotExist(err)
 }
+
+func getFile(filePath string, conn net.Conn) {
+	if fileExists(filePath) {
+		fileContents, err := ioutil.ReadFile(filePath)
+		if err != nil {
+			fmt.Println("Error reading file:", err)
+			_, err := conn.Write([]byte("HTTP/1.1 500 Internal Server Error\r\n\r\n"))
+			if err != nil {
+				fmt.Println("Error writing on the connection: ", err.Error())
+			}
+			return
+		}
+		response := fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: %d\r\n\r\n%s", len(fileContents), fileContents)
+		_, err = conn.Write([]byte(response))
+		if err != nil {
+			fmt.Println("Error writing on the connection: ", err.Error())
+		}
+	} else {
+		_, err := conn.Write([]byte("HTTP/1.1 404 Not Found\r\n\r\n"))
+		if err != nil {
+			fmt.Println("Error writing on the connection: ", err.Error())
+		}
+	}
+}
+
+func postFile(filePath string,body string, conn net.Conn) {
+	err := ioutil.WriteFile(filePath, []byte(body), 0644)
+	if err != nil {
+		fmt.Println("Error writing file:", err)
+		_, err := conn.Write([]byte("HTTP/1.1 500 Internal Server Error\r\n\r\n"))
+		if err != nil {
+			fmt.Println("Error writing on the connection: ", err.Error())
+		}
+		return
+	}
+	response := "HTTP/1.1 201 Created\r\n\r\n"
+	_, err = conn.Write([]byte(response))
+	if err != nil {
+		fmt.Println("Error writing on the connection: ", err.Error())
+	}
+}
+
