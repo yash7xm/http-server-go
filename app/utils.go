@@ -20,16 +20,6 @@ func extractMethod(req string) string {
 	return req[:end]
 }
 
-func extractUserAgent(req []byte) string {
-	lines := strings.Split(string(req), "\r\n")
-	for _, line := range lines {
-		if strings.HasPrefix(line, "User-Agent: ") {
-			return strings.TrimPrefix(line, "User-Agent: ")
-		}
-	}
-	return ""
-}
-
 func extractPostBody(req []byte) string {
 	lines := strings.Split(string(req), "\r\n")
 	for i := len(lines) - 1; i >= 0; i-- {
