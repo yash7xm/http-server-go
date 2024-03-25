@@ -16,12 +16,17 @@ func main() {
 
 	fmt.Println("server started on port 4221")
 
-	conn, err := l.Accept()
-	if err != nil {
-		fmt.Println("Error accepting connection: ", err.Error())
-		os.Exit(1)
+	for {
+		conn, err := l.Accept()
+		if err != nil {
+			fmt.Println("Error accepting connection: ", err.Error())
+			os.Exit(1)
+		}
+		go handleConnection(conn)
 	}
+}
 
+func handleConnection(conn net.Conn) {
 	req := make([]byte, 1024)
 	n, err := conn.Read(req)
 	if err != nil {
